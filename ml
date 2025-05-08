@@ -616,3 +616,137 @@ print("Silhouette Score:", score)
 sns.scatterplot(data=df, x='Age', y='Salary', hue='Cluster', palette='Set2')
 plt.title("Hierarchical Clusters")
 plt.show()
+
+// without sk learn 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+df = pd.read_excel("your_file.xlsx")  # Replace with your actual file
+X = df[['Age', 'Experience']].values
+y = df['Salary'].values
+n = len(y)
+
+# Simple Linear Regression
+x = df['Age'].values
+m = np.sum((x - np.mean(x)) * (y - np.mean(y))) / np.sum((x - np.mean(x))**2)
+c = np.mean(y) - m * np.mean(x)
+y_pred = m * x + c
+r2 = 1 - np.sum((y - y_pred) ** 2) / np.sum((y - np.mean(y)) ** 2)
+print("Simple Linear Regression R2:", r2)
+
+# Polynomial Regression (degree 2)
+X_poly = np.column_stack((np.ones(n), x, x ** 2))
+theta_poly = np.linalg.inv(X_poly.T @ X_poly) @ X_poly.T @ y
+y_poly_pred = X_poly @ theta_poly
+print("Polynomial Regression R2:", 1 - np.sum((y - y_poly_pred)**2) / np.sum((y - np.mean(y))**2))
+
+# Multiple Linear Regression
+X_mlr = np.column_stack((np.ones(n), X))
+theta = np.linalg.inv(X_mlr.T @ X_mlr) @ X_mlr.T @ y
+y_pred_mlr = X_mlr @ theta
+print("Multiple Linear Regression R2:", 1 - np.sum((y - y_pred_mlr)**2) / np.sum((y - np.mean(y))**2))
+
+# Logistic Regression
+def sigmoid(z): return 1 / (1 + np.exp(-z))
+y_class = (y > np.mean(y)).astype(int)
+X_log = np.column_stack((np.ones(n), x))
+theta = np.zeros(X_log.shape[1])
+for _ in range(1000):
+    z = X_log @ theta
+    h = sigmoid(z)
+    theta -= 0.01 * X_log.T @ (h - y_class) / n
+preds = sigmoid(X_log @ theta) > 0.5
+print("Logistic Regression Accuracy:", np.mean(preds == y_class))
+
+# KNN
+def knn(X_train, y_train, X_test, k=3):
+    preds = []
+    for test_pt in X_test:
+        dists = np.linalg.norm(X_train - test_pt, axis=1)
+        indices = np.argsort(dists)[:k]
+        preds.append(np.round(np.mean(y_train[indices])))
+    return np.array(preds)
+X_train, X_test = X[:int(0.8*n)], X[int(0.8*n):]
+y_train, y_test = y_class[:int(0.8*n)], y_class[int(0.8*n):]
+print("KNN Accuracy:", np.mean(knn(X_train, y_train, X_test) == y_test))
+
+# K-Means
+k = 2
+centroids = X[np.random.choice(n, k, replace=False)]
+for _ in range(10):
+    labels = np.argmin(np.linalg.norm(X[:, None] - centroids[None, :], axis=2), axis=1)
+    centroids = np.array([X[labels == i].mean(axis=0) for i in range(k)])
+print("K-Means Centroids:", centroids)
+
+# Decision Tree (stump)
+threshold = np.mean(X[:, 0])
+preds = (X[:, 0] > threshold).astype(int)
+print("Decision Tree Accuracy:", np.mean(preds == y_class))
+
+# ANN (1 hidden layer)
+X_ann = np.column_stack((np.ones(n), x))
+w = np.random.randn(X_ann.shape[1])
+for _ in range(1000):
+    z = sigmoid(X_ann @ w)
+    w -= 0.01 * X_ann.T @ (z - y_class) / n
+print("ANN Accuracy:", np.mean((sigmoid(X_ann @ w) > 0.5) == y_class))
+
+# Naive Bayes (Gaussian)
+print("Naive Bayes Classifier:")
+classes = np.unique(y_class)
+mean_std = {c: (X[y_class == c].mean(axis=0), X[y_class == c].std(axis=0)) for c in classes}
+def gaussian(x, mu, sigma): return np.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / (np.sqrt(2 * np.pi) * sigma)
+probs = []
+for row in X:
+    class_probs = []
+    for c in classes:
+        mu, sigma = mean_std[c]
+        prob = np.prod(gaussian(row, mu, sigma))
+        class_probs.append(prob)
+    probs.append(np.argmax(class_probs))
+print("Naive Bayes Accuracy:", np.mean(np.array(probs) == y_class))
+
+# Ridge Regression
+lmbda = 1
+theta_ridge = np.linalg.inv(X_mlr.T @ X_mlr + lmbda * np.identity(X_mlr.shape[1])) @ X_mlr.T @ y
+y_pred_ridge = X_mlr @ theta_ridge
+print("Ridge Regression R2:", 1 - np.sum((y - y_pred_ridge)**2) / np.sum((y - np.mean(y))**2))
+
+# Lasso (Gradient Descent)
+theta_lasso = np.zeros(X_mlr.shape[1])
+for _ in range(1000):
+    y_hat = X_mlr @ theta_lasso
+    grad = -2 * X_mlr.T @ (y - y_hat) / n + 0.1 * np.sign(theta_lasso)
+    theta_lasso -= 0.01 * grad
+y_pred_lasso = X_mlr @ theta_lasso
+print("Lasso Regression R2:", 1 - np.sum((y - y_pred_lasso)**2) / np.sum((y - np.mean(y))**2))
+
+# SVM (linear, binary class, gradient descent)
+X_svm = np.column_stack((np.ones(n), X))
+y_svm = 2*y_class - 1
+w = np.zeros(X_svm.shape[1])
+lr = 0.01
+for _ in range(1000):
+    margin = y_svm * (X_svm @ w)
+    grad = -np.mean((margin < 1)[:, None] * (y_svm[:, None] * X_svm), axis=0) + 0.01 * w
+    w -= lr * grad
+print("SVM Accuracy:", np.mean((X_svm @ w > 0) == (y_svm > 0)))
+
+# Hierarchical Clustering (single-link)
+from scipy.spatial.distance import pdist, squareform
+dists = squareform(pdist(X))
+clusters = [[i] for i in range(len(X))]
+while len(clusters) > 2:
+    min_dist = float('inf')
+    pair = None
+    for i in range(len(clusters)):
+        for j in range(i+1, len(clusters)):
+            d = min(dists[p1, p2] for p1 in clusters[i] for p2 in clusters[j])
+            if d < min_dist:
+                min_dist = d
+                pair = (i, j)
+    i, j = pair
+    clusters[i] += clusters[j]
+    del clusters[j]
+print("Hierarchical Clusters:", clusters)
